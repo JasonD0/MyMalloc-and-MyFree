@@ -30,15 +30,48 @@ static int   freeElems;      // number of elements in freeList[]
 static int   nFree;          // number of free chunks
 // LOOK AT DUMPHEAP TO SEE HOW USE AND GET STUFF, LOOPING THORUGH HEAP ETC
 
+static void roundUpToMultFour(int *value) {
+	while (*value % 4 != 0) {
+		(*value)++;
+	}
+}
+
 // initialise heap
 int initHeap(int size)
 {
+	// set heapSize
 	if (size < MIN_HEAP) size = MIN_HEAP;
-	if (size % 4 != 0) size += 
+	if (size % 4 != 0) size += roundUpToMultFour(&size);
+	heapSize = size;
+
+	// allocate region of memory and sets heapMem to the first byte
+	Addr heap = malloc(size);
+	if (heap == NULL) {
+		perror("Out of memory");
+		return -1;
+	}
+	heapMem = heap;
+	memset(heapMem, 0, size);
+
+	// initialise region to a free chunk
+	Header *chunk = (Header *)heapMem;
+	chunk->status = FREE;
+	chunk->size = size;
+
+	// initialise freeList array and set first element to the single free chunk
+	size /= MIN_CHUNK; 
+	freeList = malloc(size*sizeof(Addr));
+	if (freeList == NULL) {
+		perror("Out of memory");
+		return -1;
+	}
+	freeList[0] = (Addr)((char *)chunk);
+	nFree = 1;
+	freeElems = --size;
+
     return 0; 
 }
 
-static void
 
 // allocate a chunk of memory
 void *myMalloc(int size)
