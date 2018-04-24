@@ -41,7 +41,7 @@ int initHeap(int size)
 {
 	// set heapSize
 	if (size < MIN_HEAP) size = MIN_HEAP;
-	if (size % 4 != 0) size += roundUpToMultFour(&size);
+	if (size % 4 != 0) roundUpToMultFour(&size);
 	heapSize = size;
 
 	// allocate region of memory and sets heapMem to the first byte
@@ -71,7 +71,6 @@ int initHeap(int size)
 
     return 0; 
 }
-
 
 // allocate a chunk of memory
 void *myMalloc(int size)
