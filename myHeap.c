@@ -123,7 +123,7 @@ void *myMalloc(int size)
 	// free chunk < size + headerSize + MIN_CHUNK, allocate whole chunk
 	if (smallestFreeChunk->size < size + sizeof(uint) + MIN_CHUNK) {
 		smallestFreeChunk->status = ALLOC;
-		smallestFreeChunk->size = size + sizeof(uint);
+		// smallestFreeChunk->size = size + sizeof(uint); // no need change size b/c allocate all chunk 
 		nFree--;
 		freeElems--;
 		// function -> index  = index - 1  
@@ -136,10 +136,11 @@ void *myMalloc(int size)
 
 		// HOW MAKE NEW CHUNK ?
 		// upper chunk -> new free chunk, move pointer from freelist from old address to new    
-		chunk = (Header *)((char *)heapMem + smallestFreeChunk->size);
+		chunk = (Header *)((char *)heapMem + smallestFreeChunk->size); // instead of heapMem + smal..(WRONG) -> use free list 
 		chunk->status = FREE;
 		chunk->size += size + sizeof(uint);
-		freeList[freeListIndex] = (Addr)((char *)heapMem + chunk->size);
+		//freeList[freeListIndex] = (Addr)((char *)heapMem + chunk->size);
+		freeList[freeListIndex] = (Addr)((char *)smallestFreeChunk + smallestFreeChunk->size);   //  add Addr smallest -> use that insted of smallestFre
 	}
 
     return smallestFreeChunk; 
@@ -149,5 +150,24 @@ void *myMalloc(int size)
 void myFree(void *block)
 {
 	// remember void * === Addr
+	// keep prev, current    -> if curr block -> if prev free -> merge  (first merge) 
+		// maybe go through rest of heap OR one more iteration -> merge if curr free -> and break   
+		// NOT ABOVE -> USE FREE LIST -> do (header *)block  -> get size  -> loop freelist 
+			// -> no need loop all heap like below
+			// go to block -> ie chunk  
+	// no possibility of 4 merge unless myfree/mymalloc/initheap incorrect
+
+	Addr curr, prev, next; 
+	Header *chunk;
+	Addr endHeap = (Addr)((char *)heapMem + heapSize);
+	
+	curr = prev = NULL;
+	curr = heapMem;
+	
+	while (curr < endHeap) {
+		chunk = (Header *)curr;
+		curr = (Addr)((char *)curr + chunk->size);
+	}
+
 
 }
