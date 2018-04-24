@@ -26,7 +26,7 @@ typedef struct {             // headers for Chunks
 static Addr  heapMem;        // space allocated for Heap
 static int   heapSize;       // number of bytes in heapMem
 static Addr *freeList;       // array of pointers to free chunks
-static int   freeElems;      // number of elements in freeList[]
+static int   freeElems;      // number of elements in freeList[]   // diff to nfree b/c when free chunks split (?)    
 static int   nFree;          // number of free chunks
 // LOOK AT DUMPHEAP TO SEE HOW USE AND GET STUFF, LOOPING THORUGH HEAP ETC
 
@@ -56,7 +56,7 @@ int initHeap(int size)
 	// initialise region to a free chunk
 	Header *chunk = (Header *)heapMem;
 	chunk->status = FREE;
-	chunk->size = size;
+	chunk->size = size + sizeof(uint); 
 
 	// initialise freeList array and set first element to the single free chunk
 	size /= MIN_CHUNK; 
@@ -67,7 +67,7 @@ int initHeap(int size)
 	}
 	freeList[0] = (Addr)((char *)chunk);
 	nFree = 1;
-	freeElems = --size;
+	freeElems = 1;
 
     return 0; 
 }
@@ -75,12 +75,79 @@ int initHeap(int size)
 // allocate a chunk of memory
 void *myMalloc(int size)
 {
+	Addr curr;
+	Header *chunk;
+	Header *smallestFreeChunk;
+	Addr endHeap = (Addr)((char *)heapMem + heapSize);
+	int freeListIndex = 0, counter = 0;
 
-    return NULL; // this just keeps the compiler quiet
+	// find smallest free chunk
+	curr = heapMem;
+	while (curr < endHeap) {
+		chunk = (Header *)curr;
+		switch (chunk->status) {
+			case FREE: counter++; break;
+			case ALLOC: curr = (Addr)((char *)curr + chunk->size); continue; break;
+			default: fprintf(stderr,"Corrupted heap %08x\n",chunk->status); exit(1); break;
+		}
+		// curr status always free if reaches here
+		// get first free chunk with size larger than size + headerSize
+		if (smallestFreeChunk == NULL  &&  chunk->size > size + sizeof(uint)) {
+			smallestFreeChunk = (Header *)curr;
+			freeListIndex = counter;
+		// skip next else if 
+		} else if (smallestFreeChunk == NULL) {
+
+		// sets current chunk to be the smallest chunk 	
+		} else if (smallestFreeChunk->size > chunk->size  &&  chunk->size > size + sizeof(uint)) {
+			smallestFreeChunk = (Header *)curr;
+			freeListIndex = counter;
+		}
+		cur = (Addr)((char *)curr + chunk->size);
+	}   
+	// OR LOOP THROUGH FREE LIST -> GET VALUE IE ADDR -> heapMEM + VALUE -> = header *chunk  
+		// but 
+		// alt way if above doesnt work
+	/*
+	Header *chunk;
+	Addr smallestFreeChunk;
+	for (int i = 0; i < freeElems; i++) {
+		chunk = (Header *)freeList[i];
+		etc...
+	}	
+	*/
+	// no free chunk available
+	if (smallestFreeChunk == NULL) return NULL;
+
+	// is it <= or >=     same as above is chunk->size >= ?   ie  what happens when equal
+	// free chunk < size + headerSize + MIN_CHUNK, allocate whole chunk
+	if (smallestFreeChunk->size < size + sizeof(uint) + MIN_CHUNK) {
+		smallestFreeChunk->status = ALLOC;
+		smallestFreeChunk->size = size + sizeof(uint);
+		nFree--;
+		freeElems--;
+		// function -> index  = index - 1  
+			//freeList[freeListIndex] 
+	} else if (smallestFreeChunk->size > size + sizeof(uint) + MIN_CHUNK) {
+		// all below prob wrong
+		// set lower chunk -> alloc
+		smallestFreeChunk->status = ALLOC;
+		smallestFreeChunk->size = size + sizeof(uint);
+
+		// HOW MAKE NEW CHUNK ?
+		// upper chunk -> new free chunk, move pointer from freelist from old address to new    
+		chunk = (Header *)((char *)heapMem + smallestFreeChunk->size);
+		chunk->status = FREE;
+		chunk->size += size + sizeof(uint);
+		freeList[freeListIndex] = (Addr)((char *)heapMem + chunk->size);
+	}
+
+    return smallestFreeChunk; 
 }
 
 // free a chunk of memory
 void myFree(void *block)
 {
+	// remember void * === Addr
 
 }
