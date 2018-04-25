@@ -187,7 +187,8 @@ void myFree(void *block)
 				} else if (freeList[i-1] + prevFreeChunk->size == toFreeChunk) {
 					// no need change freelist because havent added toFreechunk to list
 					prevFreeChunk->size += toFreeChunk->size;
-					free(toFreeChunk); 	//???    can only free dynamic mem creation ie malloc so can use if we (header *) -> ? -> maybe set status to -1/etc and size = -1/etc  and dont check if null -> check value
+					//free(toFreeChunk); 	//???    can only free dynamic mem creation ie malloc so can use if we (header *) -> ? -> maybe set status to -1/etc and size = -1/etc  and dont check if null -> check value
+					toFreeChunk = NULL;
 				}
 
 			} else if (nextFreeChunk != NULL) {
@@ -196,7 +197,8 @@ void myFree(void *block)
 					toFreeChunk->size += nextFreeChunk->size;
 					// replace nextFreeChunk with toFreeChunk(merged with next) in freelist
 					freeList[i] = (Addr)((char *)toFreeChunk);
-					free(nextFreeChunk); //???
+					//free(nextFreeChunk); //???
+					nextFreeChunk = NULL;
 				// merge with both next and previous
 				} else if ( freeList[i-1] + prevFreeChunk->size == toFreeChunk && freeList[i] + nextFreeChunk->size == toFreeChunk) {
 					prevFreeChunk->size += toFreeChunk->size + nextFreeChunk->size;
@@ -207,8 +209,9 @@ void myFree(void *block)
 					}
 					nFree--;
 					freeElem++;
-					free(toFreeChunk);
-					free(nextFreeChunk);
+					//free(toFreeChunk);
+					//free(nextFreeChunk);
+					toFreeChunk = nextFreeChunk = NULL;
 				}
 			}
 		}
