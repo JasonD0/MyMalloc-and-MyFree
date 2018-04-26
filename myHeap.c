@@ -80,15 +80,13 @@ void *myMalloc(int size)
 {
 	if (nFree == 0 || size < 0 || size > heapSize) return NULL;
 
-	Addr curr;
+	//Addr curr;
 	Header *chunk;
 	Header *smallestFreeChunk;
-	Addr endHeap = (Addr)((char *)heapMem + heapSize);
-	int smallestChunkIndex = 0, counter = 0;
+	//Addr endHeap = (Addr)((char *)heapMem + heapSize);
+	int smallestChunkIndex = 0; // counter = 0;
 
 	// find smallest free chunk
-	Header *chunk;
-	Header *smallestFreeChunk;   	
 	for (int i = 0; i < freeElems; i++) {
 		chunk = (Header *)freeList[i];
 		// get first free chunk with size larger than size + headerSize
@@ -182,7 +180,7 @@ void myFree(void *block)
 					}
 					freeList[i] = (Addr)((char *)toFreeChunk);
 					nFree++;
-					freeElem--;
+					freeElems--;
 				// merge with previous chunk
 				} else if (freeList[i-1] + prevFreeChunk->size == toFreeChunk) {
 					// no need change freelist because havent added toFreechunk to list
@@ -208,7 +206,7 @@ void myFree(void *block)
 						freeList[j] = freeList[j+1];
 					}
 					nFree--;
-					freeElem++;
+					freeElems++;
 					//free(toFreeChunk);
 					//free(nextFreeChunk);
 					toFreeChunk = nextFreeChunk = NULL;
