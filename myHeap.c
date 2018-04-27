@@ -1,5 +1,6 @@
 // COMP1521 18s1 Assignment 2
 // Implementation of heap management system
+// Written By Jason Do
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +27,7 @@ typedef struct {             // headers for Chunks
 static Addr  heapMem;        // space allocated for Heap
 static int   heapSize;       // number of bytes in heapMem
 static Addr *freeList;       // array of pointers to free chunks
-static int   freeElems;      // number of elements in freeList[]
+static int   freeElems;      // number of elements in freeList[]  
 static int   nFree;          // number of free chunks
 
 
@@ -179,7 +180,13 @@ void myFree(void *block)
     int i = 0;
     
     for (i = 0; i < nFree; i++) {
-        if ((Addr)((char *)freeList[i]) > toFreeAddr) break;
+//        if ((Addr)((char *)freeList[i]) > toFreeAddr) break; // problem here -> because cant merge next
+        if ((Addr)((char *)freeList[i] - toFreeChunk->size) > toFreeAddr) break; 
+/*        if ((Addr)((char *)freeList[i]) < toFreeAddr) {
+            if (i+1 != nFree && (Addr)((char *)freeList[i+1] > toFreeAddr)) {
+                
+            } 
+        }*/
         currChunk = (Header *)freeList[i];
         
         // merging with previous node relative to block
@@ -203,7 +210,8 @@ void myFree(void *block)
             return;   
         }
         // merging with next node relative to block
-        else if ((Addr)((char *)freeList[i]) - toFreeChunk->size > heapMem &&  //next not first chunk in heapMem (ensure always next to a node)
+        else if ((Addr)((char *)freeList[i]) - toFreeChunk->size >= heapMem &&  //next not first chunk in heapMem (ensure always next to a node)
+        // unlike for prev node -> >= heapMem -> because if toFreechunk is first  
                  (Addr)((char *)freeList[i] - toFreeChunk->size) == toFreeAddr) {   
             toFreeChunk->size += currChunk->size;   
             toFreeChunk->status = FREE;
@@ -214,12 +222,9 @@ void myFree(void *block)
             return;
         } 
     }
+    
     // get here if no merges 
     toFreeChunk->status = FREE;
-/*    if (i <= 0) {
-        fprintf(stderr, "Attempt to free unallocated chunk\n");
-		exit(1);
-	}*/    // wrong because 1st free chunk could be ahead of allocated chunk -> so i =0 -> break;
 	// i -> index where 1st bigger than block -> ie block is before i -> so want block at i  
 	    // ie 3rd place passes 2nd place -> becomes 2nd place
 	// no merges, adding new free chunk to freeList
@@ -230,59 +235,6 @@ void myFree(void *block)
     freeList[j] = toFreeAddr;
     nFree++;
     freeElems--;
-
-/*
-	// PROBLEM : IF EG TEST 2 -> NFREE ALWAYS 1   -> need different loop method IE REDO WHOLE THING
-	    // free first -> then loop freelist -> check if their addr + size == freed start adress   
-	        // NOTE: REMEMBER TO MINUS SIZEOF HEADER WHEN NECESSARY
-	for (int i = 1; i < nFree; i++) {
-	printf("%p %p %p\n", freeList[i], block, freeList[i-1]);
-		if (freeList[i] > block && freeList[i-1] < block) {		// convert to (char *) ?  -> can you compare void * ? -> in heapoffset -> compares
-			if (i < nFree) nextFreeChunk = (Header *)freeList[i]; 			
-			prevFreeChunk = (Header *)freeList[i-1];	// there shoudl always be a previous sicne loop starts at 1 
-			
-			if (nextFreeChunk == NULL) {	// || nextFree->status != Free    just in case b/c comment in prev chunk merge
-				// no merges
-				if (freeList[i-1] + prevFreeChunk->size != toFreeChunk) {
-					toFreeChunk->status = FREE;
-					// want make freelist[i] empty for freechunk, assumes freelist not full ie nFree < freelist size 
-					for (int j = nFree; j > i; j--) {
-						freeList[j] = freeList[j-1];
-					}
-					freeList[i] = (Addr)((char *)toFreeChunk);
-					nFree++;
-					freeElems--;
-				// merge with previous chunk
-				} else if (freeList[i-1] + prevFreeChunk->size == toFreeChunk) {
-					// no need change freelist because havent added toFreechunk to list
-					prevFreeChunk->size += toFreeChunk->size;
-					toFreeChunk = NULL;
-				}
-
-			} else if (nextFreeChunk != NULL) {
-				// merge with next chunk
-				if (freeList[i-1] + prevFreeChunk->size != toFreeChunk && freeList[i] + nextFreeChunk->size == toFreeChunk) {
-					toFreeChunk->size += nextFreeChunk->size;
-					// replace nextFreeChunk with toFreeChunk(merged with next) in freelist
-					freeList[i] = (Addr)((char *)toFreeChunk);
-					nextFreeChunk = NULL;
-				// merge with both next and previous
-				} else if ( freeList[i-1] + prevFreeChunk->size == toFreeChunk && freeList[i] + nextFreeChunk->size == toFreeChunk) {
-					prevFreeChunk->size += toFreeChunk->size + nextFreeChunk->size;
-					// remember tofreechunk is not in the free list -> so only 2 (next and previous) -> merge previous with current and next so only next removed
-					// move freelist elements down one spot
-					for (int j = i + 1; j < nFree; j++) {
-						freeList[j] = freeList[j+1];
-					}
-					nFree--;
-					freeElems++;
-					toFreeChunk = nextFreeChunk = NULL;
-				}
-			}
-		    return;	
-		}
-	}*/
-
 }
 
 
@@ -316,7 +268,7 @@ void dumpHeap()
       }
       printf("+%05d (%c,%5d) ", heapOffset(curr), stat, chunk->size);
       onRow++;
-      if (onRow%5 == 0) printf("\n");
+      //if (onRow%5 == 0) printf("\n");
  //     printf("\ndump : %p %p %p\n", curr, curr+8, curr+16);     // why is curr+16  -> +2  ie max + 10 overall
       curr = (Addr)((char *)curr + chunk->size);
    }
