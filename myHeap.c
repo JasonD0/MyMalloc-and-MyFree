@@ -30,7 +30,7 @@ static Addr *freeList;       // array of pointers to free chunks
 static int   freeElems;      // number of elements in freeList[]  
 static int   nFree;          // number of free chunks
 
-
+// size padding to multiple of four
 static void roundUpToMultFour(int *value) {
 	while (*value % 4 != 0) {
 		(*value)++;
@@ -59,7 +59,7 @@ int initHeap(int size)
 	chunk->status = FREE;
 	chunk->size = size;             
 
-	// initialise freeList array and set first element to the single free chunk
+	// initialise freeList array and point first element to the free chunk
 	size /= MIN_CHUNK; 
 	freeList = malloc(size*sizeof(Addr));
 	if (freeList == NULL) {
@@ -68,8 +68,8 @@ int initHeap(int size)
 	}
 	freeList[0] = (Addr)((char *)chunk);
 	nFree = 1;
-	freeElems = size - 1;
-//    printf("%p %p\n", heapMem, (char *)heapMem + 16);   ...0f  ...10 -> 10 is one after f -> look at hex table 
+	freeElems = size;
+	
     return 0; 
 }
 
@@ -80,14 +80,14 @@ void freeHeap()
    free(freeList);
 }
 
-
-
-
 // allocate a chunk of memory
 void *myMalloc(int size)
 {
 	if (nFree == 0 || size < 1 || size > heapSize) return NULL;
-
+    
+    // size padding to multiple four
+    if (size % 4 != 0) roundUpToMultFour(&size);
+    
 	Header *chunk = NULL;
 	Header *smallestFreeChunk = NULL;
 	int smallestChunkIndex = 0; 
@@ -95,82 +95,71 @@ void *myMalloc(int size)
 	// find smallest free chunk
 	for (int i = 0; i < nFree; i++) {
 		chunk = (Header *)freeList[i];
-		// get first free chunk with size larger than size + headerSize
-		if (smallestFreeChunk == NULL  &&  chunk->size > size + sizeof(Header)) {
+		
+		// get first free chunk with enough space
+		if (smallestFreeChunk == NULL && chunk->size > size + sizeof(Header)) {
 			smallestChunkIndex = i;
 			smallestFreeChunk = (Header *)freeList[i];
+			
 		// skip next else if 
 		} else if (smallestFreeChunk == NULL) {
 
-		// sets current chunk to be the smallest chunk 	
-		} else if (smallestFreeChunk->size > chunk->size  &&  chunk->size > size + sizeof(Header)) {
+		// sets current chunk to be the smallest chunk if enough space 	
+		} else if (smallestFreeChunk->size > chunk->size && 
+		           chunk->size > size + sizeof(Header)) {
 			smallestFreeChunk = (Header *)freeList[i];	
 			smallestChunkIndex = i;
 		}
 	}	
 	
-	// no free chunk available
+	// no free chunk large enough
 	if (smallestFreeChunk == NULL) return NULL;
 
-	// is it <= or >=     same as above is chunk->size >= ?   ie  what happens when equal
-	// free chunk < size + headerSize + MIN_CHUNK, allocate whole chunk 
-	if (smallestFreeChunk->size < size + sizeof(Header) + MIN_CHUNK) {
+	// allocate whole chunk if chunk <= given size + headerSize + MIN_CHUNK 
+	if (smallestFreeChunk->size <= size + sizeof(Header) + MIN_CHUNK) {     // spec says smaller than (?) 
 		smallestFreeChunk->status = ALLOC;
 		// remove smallest chunk from free list
 		for (int i = smallestChunkIndex; i < nFree; i++) {
 			freeList[i] = freeList[i+1];
 		}
 		nFree--;
-		freeElems++;
+		
+	// split chunk into two parts if chunk > given size + headerSize + MIN_CHUNK
 	} else if (smallestFreeChunk->size > size + sizeof(Header) + MIN_CHUNK) {
-		// set lower chunk -> alloc
+		// allocate lower chunk with given size 
 		int oldSize = smallestFreeChunk->size;
 		smallestFreeChunk->status = ALLOC;
 		smallestFreeChunk->size = size + sizeof(Header);
 
-		// upper chunk -> new free chunk, move pointer from freelist from old address to new   
+		// create upper chunk and move pointer from old address to new address
 		Addr lowerAddr = (Addr)((char *)freeList[smallestChunkIndex] + smallestFreeChunk->size); 
 		chunk = (Header *)lowerAddr;  
 		chunk->status = FREE;
-
 		chunk->size = oldSize - smallestFreeChunk->size;
 		freeList[smallestChunkIndex] = (Addr)((char *)freeList[smallestChunkIndex] + smallestFreeChunk->size);   
 	}
-/*
-   Addr    curr;
-   Addr    endHeap = (Addr)((char *)heapMem + heapSize);
-    
-   curr = heapMem;
-   while (curr < endHeap) {
-      chunk = (Header *)curr;
-      printf("\n curr: %p  %d   %d\n", chunk, chunk->status, chunk->size);
-      curr = (Addr)((char *)curr + chunk->size);
-   }*/ 
+
     return (char *)smallestFreeChunk + sizeof(Header); 
 }
-
-
-
 
 // free a chunk of memory
 void myFree(void *block)
 {
-	// no more space in freeList   -> does it matter? -> because not enough space -> high chance of merge -> so liekly have free space -> just in case leave?
-	// else not using freeElems   -> ?????? probably a problem 
-	if (freeElems <= 0) return; 
+	if (freeElems == nFree) return; 
 
-	// check if block within the heap 
+	// check if block allocated chunk within the heap
 	Addr heapTop = (Addr)((char *)heapMem + heapSize);
-	if (block == NULL || block < heapMem || block >= heapTop) {		// >= because if block = -> size = 0
+	if (block == NULL || block < heapMem || block >= heapTop) {		
 		fprintf(stderr, "Attempt to free unallocated chunk\n");
 		exit(1);
 	}
 	
+    // assumption : myFree used for myMalloc
+    // get start address of block
 	Addr toFreeAddr = (Addr)((char *)block - sizeof(Header));
+	Header *toFreeChunk = (Header *)toFreeAddr;   
 
-	// check block is an alocated chunk
-	Header *toFreeChunk = (Header *)toFreeAddr;   /// because data allocated 8 bytes(Header) ahead of start -> no status there
-	
+	// check block is an allocated chunk within the heap
 	if (toFreeChunk->status != ALLOC) {
 		fprintf(stderr, "Attempt to free unallocated chunk\n");
 		exit(1);
@@ -178,63 +167,52 @@ void myFree(void *block)
 
 	Header *currChunk = NULL;
     int i = 0;
-    
+    // searches for possible free chunk merges
     for (i = 0; i < nFree; i++) {
-//        if ((Addr)((char *)freeList[i]) > toFreeAddr) break; // problem here -> because cant merge next
+        // no free chunk surrounding block
         if ((Addr)((char *)freeList[i] - toFreeChunk->size) > toFreeAddr) break; 
-/*        if ((Addr)((char *)freeList[i]) < toFreeAddr) {
-            if (i+1 != nFree && (Addr)((char *)freeList[i+1] > toFreeAddr)) {
-                
-            } 
-        }*/
+
         currChunk = (Header *)freeList[i];
         
-        // merging with previous node relative to block
-        if ((Addr)((char *)freeList[i]) + currChunk->size < (Addr)((char *)heapMem + heapSize) &&   //prev node last chunk(ensure prev to node)
+        // merging block and its previous chunk
+        if ((Addr)((char *)freeList[i] + currChunk->size) < (Addr)((char *)heapMem + heapSize) &&  
             (Addr)((char *)freeList[i] + currChunk->size) == toFreeAddr) {
             currChunk->size += toFreeChunk->size;
             toFreeChunk = NULL;
-            // merging previous and next node relative to block
-            // here if i+1 exists -> next block always exists b/c i exists
+            
+            // merging merged chunk (previous and block) with the next chunk
             if (i + 1 != nFree && (Addr)((char *)freeList[i+1] - currChunk->size) == freeList[i]) {
                 Header *nextFree = (Header *)freeList[i+1];
                 currChunk->size += nextFree->size;
                 nFree--;
-                freeElems++;
-                nextFree = NULL;  // note dont think it matters -> bc eg dumpheap -> iterating through by curr size -> ie skips anything between
-                // move list 
+                nextFree = NULL; 
+                // remove pointer to the next chunk from freeList 
                 for (int j = i + 1; j < nFree; j++) {
                     freeList[j] = freeList[j+1];
                 }
             }          
-            return;   
-        }
-        // merging with next node relative to block
-        else if ((Addr)((char *)freeList[i]) - toFreeChunk->size >= heapMem &&  //next not first chunk in heapMem (ensure always next to a node)
-        // unlike for prev node -> >= heapMem -> because if toFreechunk is first  
-                 (Addr)((char *)freeList[i] - toFreeChunk->size) == toFreeAddr) {   
+            return;
+               
+        // merging block and its next chunk
+        } else if ((Addr)((char *)freeList[i] - toFreeChunk->size) >= heapMem &&  
+                   (Addr)((char *)freeList[i] - toFreeChunk->size) == toFreeAddr) {   
             toFreeChunk->size += currChunk->size;   
             toFreeChunk->status = FREE;
             currChunk = NULL;
             freeList[i] = (Addr)((char *)toFreeChunk);
-            // number of free elements dont change since 2 became 1
-            // merging next next shouldnt be possible -> should be already merged 
             return;
         } 
     }
     
-    // get here if no merges 
+    // no free chunk(s) surrounding block
+    // set block's status and set a freeList pointer to it
     toFreeChunk->status = FREE;
-	// i -> index where 1st bigger than block -> ie block is before i -> so want block at i  
-	    // ie 3rd place passes 2nd place -> becomes 2nd place
-	// no merges, adding new free chunk to freeList
 	int j = 0;
     for (j = nFree; j > i; j--) {
         freeList[j] = freeList[j-1];
     }
     freeList[j] = toFreeAddr;
     nFree++;
-    freeElems--;
 }
 
 
@@ -260,7 +238,6 @@ void dumpHeap()
    while (curr < endHeap) {
       char stat;
       chunk = (Header *)curr;
-      //printf("dump : %p  %d   %d\n", chunk, chunk->status, chunk->size);
       switch (chunk->status) {
       case FREE:  stat = 'F'; break;
       case ALLOC: stat = 'A'; break;
@@ -268,8 +245,7 @@ void dumpHeap()
       }
       printf("+%05d (%c,%5d) ", heapOffset(curr), stat, chunk->size);
       onRow++;
-      //if (onRow%5 == 0) printf("\n");
- //     printf("\ndump : %p %p %p\n", curr, curr+8, curr+16);     // why is curr+16  -> +2  ie max + 10 overall
+      if (onRow%5 == 0) printf("\n");
       curr = (Addr)((char *)curr + chunk->size);
    }
    if (onRow > 0) printf("\n");
